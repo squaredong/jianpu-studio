@@ -1,0 +1,54 @@
+appId: com.jianpu.studio
+productName: 简谱工坊
+copyright: Copyright © 2026 简谱工坊
+artifactName: JianpuStudio-${version}-${platform}-${arch}.${ext}
+
+directories:
+  output: dist-electron
+  buildResources: build
+
+# Vite 已把全部依赖打进 dist，安装包里不需要 node_modules
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 简谱工坊
+  runAfterFinish: true
+  installerLanguages:
+    - zh_CN
+    - en_US
+  language: 2052
+
+mac:
+  icon: build/icon.png
+  category: public.app-category.music
+  identity: null
+  target:
+    - target: dmg
+      arch:
+        - universal
+
+dmg:
+  title: 简谱工坊
+  contents:
+    - x: 130
+      y: 210
+    - x: 410
+      y: 210
+      type: link
+      path: /Applications
