@@ -20,6 +20,8 @@ jobs:
   windows:
     if: github.event_name != 'workflow_dispatch' || inputs.job == 'all' || inputs.job == 'windows'
     runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,9 +39,10 @@ jobs:
 
   macos:
     if: github.event_name != 'workflow_dispatch' || inputs.job == 'all' || inputs.job == 'macos'
-    runs-on: macos-14
+    runs-on: macos-13
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

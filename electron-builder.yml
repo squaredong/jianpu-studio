@@ -2,6 +2,7 @@ appId: com.jianpu.studio
 productName: 简谱工坊
 copyright: Copyright © 2026 简谱工坊
 artifactName: JianpuStudio-${version}-${platform}-${arch}.${ext}
+publish: never
 
 directories:
   output: dist-electron
