@@ -6,3 +6,6 @@ dist-mac*/
 release/
 *.log
 .DS_Store
+
+# 测试输出截图/PDF
+test/shots/
