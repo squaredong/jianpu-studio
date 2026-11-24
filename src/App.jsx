@@ -11,6 +11,7 @@ import {
   totalBeats, buildMeasures,
 } from './lib/score'
 import { downloadMidi } from './lib/midiIO'
+import { printScore } from './lib/printScore'
 
 const STORAGE_KEY = 'jianpu-studio-score-v1'
 
@@ -119,6 +120,16 @@ export default function App() {
     setSelectedIndex(null)
   }
 
+  function printCurrentScore() {
+    if (!score.notes.length) { notify('error', '乐谱是空的，先输入一些音符再打印。'); return }
+    stopPlayback()
+    setSelectedIndex(null)
+    // 打印前切到编辑页，保证简谱纸张在 DOM 中
+    if (activeTab !== 'edit') setActiveTab('edit')
+    // 等 React 完成重绘再调起打印对话框
+    setTimeout(printScore, 60)
+  }
+
   function applyScore(newScore, message) {
     stopPlayback()
     mutate(() => newScore)
@@ -157,6 +168,7 @@ export default function App() {
       if (showHelp) { if (e.key === 'Escape') setShowHelp(false); return }
       const tag = e.target?.tagName?.toLowerCase()
       if (['input', 'select', 'textarea'].includes(tag)) return
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); printCurrentScore(); return }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return }
       if (activeTab !== 'edit') return
 
@@ -330,6 +342,9 @@ export default function App() {
               <button className="ghost-btn" onClick={() => fileInputRef.current?.click()}>打开工程</button>
               <input ref={fileInputRef} type="file" accept=".json,application/json" hidden onChange={e => importProject(e.target.files?.[0])} />
             </div>
+            <div className="action-row">
+              <button className="ghost-btn full" onClick={printCurrentScore} disabled={!score.notes.length} title="打印简谱 (Ctrl+P)">打印乐谱</button>
+            </div>
             <button className="ghost-btn full danger" onClick={clearAll} disabled={!score.notes.length}>清空乐谱</button>
           </section>
 
@@ -351,6 +366,7 @@ export default function App() {
                 <div className="bar-actions">
                   <button className="secondary-btn" onClick={() => downloadMidi(score)} disabled={!score.notes.length}>导出 MIDI</button>
                   <button className="secondary-btn" onClick={exportProject}>保存工程</button>
+                  <button className="secondary-btn" onClick={printCurrentScore} disabled={!score.notes.length} title="打印简谱 (Ctrl+P)">打印乐谱</button>
                 </div>
               </div>
               <ScoreView
@@ -427,7 +443,10 @@ export default function App() {
                 <p><b>图片转谱</b>：上传五线谱图片自动识别符头与音高，框选标注方便核对；识别结果可应用到乐谱或导出 MIDI。适合清晰的单行谱。</p>
               </div>
               <div className="help-block"><h3>快捷键</h3>
-                <p><kbd>1</kbd>–<kbd>7</kbd> 输入音符 · <kbd>0</kbd> 休止 · <kbd>↑</kbd><kbd>↓</kbd> 八度 · <kbd>#</kbd>/<kbd>b</kbd> 升降 · <kbd>←</kbd><kbd>→</kbd> 选择音符 · <kbd>Del</kbd> 删除 · <kbd>Space</kbd> 播放 · <kbd>Ctrl+Z</kbd> 撤销</p>
+                <p><kbd>1</kbd>–<kbd>7</kbd> 输入音符 · <kbd>0</kbd> 休止 · <kbd>↑</kbd><kbd>↓</kbd> 八度 · <kbd>#</kbd>/<kbd>b</kbd> 升降 · <kbd>←</kbd><kbd>→</kbd> 选择音符 · <kbd>Del</kbd> 删除 · <kbd>Space</kbd> 播放 · <kbd>Ctrl+Z</kbd> 撤销 · <kbd>Ctrl+P</kbd> 打印</p>
+              </div>
+              <div className="help-block"><h3>打印乐谱</h3>
+                <p>点击「打印乐谱」或按 <kbd>Ctrl+P</kbd>，会输出排版干净的 A4 简谱：自动隐藏所有编辑控件，只保留标题、调号、拍号、速度和音符。在打印对话框里也可以选择「另存为 PDF」。若在其它标签页使用，会自动切回打谱页再打印。</p>
               </div>
               <div className="help-block"><h3>简谱记法</h3>
                 <p>音符上方圆点表示高八度，下方圆点表示低八度；数字下方横线表示八分 / 十六分音符；数字后短横线表示延长时值，圆点表示附点。</p>

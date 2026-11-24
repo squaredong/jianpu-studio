@@ -85,6 +85,7 @@ export default function ScoreView({ score, selectedIndex, playingIndex, onSelect
             ))}
           </div>
         )}
+        <div className="print-footer">简谱工坊 · Jianpu Studio · {new Date().toLocaleDateString('zh-CN')}</div>
       </div>
     </div>
   )

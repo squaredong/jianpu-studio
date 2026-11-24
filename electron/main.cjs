@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, protocol, session, dialog } = require('electron')
+const { app, BrowserWindow, shell, protocol, session, dialog, ipcMain } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 
@@ -60,6 +60,7 @@ function createWindow() {
       spellcheck: false,
       devTools: isDev,
       backgroundThrottling: false,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   })
 
@@ -94,6 +95,17 @@ function configureDownloads() {
     item.setSavePath(path.join(app.getPath('downloads'), filename))
   })
 }
+
+// 原生打印：打印背景色，让纸张纹理与减时线正常输出
+ipcMain.handle('score:print', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, reason: 'no-window' }
+  mainWindow.webContents.print({
+    printBackground: true,
+    marginsType: 1,
+    pageSize: 'A4',
+  })
+  return { ok: true }
+})
 
 app.whenReady().then(() => {
   if (!isDev) registerProtocol()

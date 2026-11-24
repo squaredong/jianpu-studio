@@ -314,6 +314,52 @@ kbd {
 .help-block b { color: var(--text); }
 .help-note { background: rgba(90,209,192,.08); border: 1px solid rgba(90,209,192,.25); border-radius: 8px; padding: 12px; font-size: 11px; color: #a9d8cf; line-height: 1.7; }
 
+/* ---------- 打印：只输出纯净简谱 ---------- */
+@page { size: A4; margin: 14mm 12mm; }
+
+@media print {
+  html, body, #root, .app { height: auto !important; min-height: 0 !important; overflow: visible !important; }
+  body { background: #fff !important; color: #000 !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+  /* 隐藏所有编辑界面元素 */
+  .topbar, .sidebar, .content-bar, .shortcut-strip, .toast, .modal-backdrop, .paper-wrap > .print-toolbar { display: none !important; }
+  .app-body, .content { display: block !important; overflow: visible !important; padding: 0 !important; margin: 0 !important; height: auto !important; }
+  .paper-wrap { overflow: visible !important; }
+
+  /* 纸张：白底黑字、无阴影纹理 */
+  .paper {
+    background: #fff !important;
+    background-image: none !important;
+    color: #000 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+  }
+  .paper-head { border-bottom-color: #999 !important; padding-bottom: 10px !important; margin-bottom: 20px !important; }
+  .paper-title { font-size: 20px !important; letter-spacing: 3px !important; color: #000 !important; }
+  .paper-meta { color: #333 !important; gap: 18px !important; }
+  .paper-empty { display: none !important; }
+
+  /* 小节不被分页切断；整份谱面跨页时自然换行 */
+  .measures { row-gap: 22px !important; padding-top: 0 !important; }
+  .measure { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .measure-no { color: #888 !important; }
+  .barline { background: #000 !important; opacity: 1 !important; }
+
+  .note-cell { color: #000 !important; height: 92px !important; }
+  .note-cell:hover, .note-cell.selected, .note-cell.playing { background: transparent !important; outline: none !important; }
+  .octave-dot, .duration-line { background: #000 !important; }
+  .note-cell.rest .note-core { color: #333 !important; }
+
+  /* 页面页脚信息 */
+  .print-footer { display: block !important; }
+}
+
+/* 打印页脚仅在打印时可见 */
+.print-footer { display: none; margin-top: 18px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 10px; color: #666; text-align: right; }
+
 @media (max-width: 1100px) {
   .panel-grid { grid-template-columns: 1fr; }
   .sidebar { width: 260px; flex-basis: 260px; }
