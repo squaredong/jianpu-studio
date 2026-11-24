@@ -4,11 +4,13 @@ import AudioPanel from './components/AudioPanel'
 import MidiPanel from './components/MidiPanel'
 import StaffPanel from './components/StaffPanel'
 import ImageOcrPanel from './components/ImageOcrPanel'
+import LyricEditor from './components/LyricEditor'
 import { audioEngine } from './lib/audioEngine'
 import { KEY_OPTIONS, keyLabel } from './lib/musicTheory'
 import {
   createDefaultScore, createNote, DURATION_OPTIONS, restNote,
-  totalBeats, buildMeasures,
+  totalBeats, buildMeasures, normalizeScore, hasLyrics,
+  addLyricLine, removeLyricLine, renameLyricLine, setNoteLyric,
 } from './lib/score'
 import { downloadMidi } from './lib/midiIO'
 import { printScore } from './lib/printScore'
@@ -29,7 +31,7 @@ function loadStoredScore() {
     if (!raw) return createDefaultScore()
     const parsed = JSON.parse(raw)
     if (Array.isArray(parsed.notes) && parsed.key && parsed.timeSignature) {
-      return { ...createDefaultScore(), ...parsed }
+      return normalizeScore(parsed)
     }
   } catch { /* ignore */ }
   return createDefaultScore()
@@ -38,6 +40,8 @@ function loadStoredScore() {
 export default function App() {
   const [score, setScore] = useState(loadStoredScore)
   const [selectedIndex, setSelectedIndex] = useState(null)
+  const [showLyrics, setShowLyrics] = useState(() => hasLyrics(loadStoredScore()))
+  const [lyricFocus, setLyricFocus] = useState(null)
   const [input, setInput] = useState({ duration: 1, accidental: 0, octave: 0, isRest: false })
   const [activeTab, setActiveTab] = useState('edit')
   const [playingIndex, setPlayingIndex] = useState(null)
@@ -106,6 +110,20 @@ export default function App() {
     }))
   }
 
+  // 歌词逐字输入不进入撤销栈，避免每次按键都产生一条历史
+  function setLyric(noteIndex, lineIndex, text) {
+    setScore(prev => setNoteLyric(prev, noteIndex, lineIndex, text))
+  }
+
+  function focusLyric(noteIndex, lineIndex) {
+    setActiveTab('edit')
+    setSelectedIndex(noteIndex)
+    setShowLyrics(true)
+    setLyricFocus({ noteIndex, lineIndex, at: Date.now() })
+    const note = score.notes[noteIndex]
+    if (note?.degree) audioEngine.previewNote(note, score.key, score.tempo)
+  }
+
   function undo() {
     const prev = history.current.pop()
     if (!prev) { notify('info', '没有更多可撤销的操作。'); return }
@@ -131,9 +149,12 @@ export default function App() {
   }
 
   function applyScore(newScore, message) {
+    const next = normalizeScore(newScore)
     stopPlayback()
-    mutate(() => newScore)
+    mutate(() => next)
     setSelectedIndex(null)
+    setShowLyrics(hasLyrics(next))
+    setLyricFocus(null)
     setActiveTab('edit')
     notify('success', message)
   }
@@ -352,6 +373,7 @@ export default function App() {
             <div><span>小节</span><b>{measures.length}</b></div>
             <div><span>音符</span><b>{score.notes.filter(n => n.degree !== 0).length}</b></div>
             <div><span>总拍数</span><b>{totalBeats(score.notes)}</b></div>
+            <div><span>歌词行</span><b>{score.lyricLines?.length || 0}</b></div>
           </div>
         </aside>
 
@@ -364,6 +386,13 @@ export default function App() {
                   <p>{keyLabel(score.key)} · {score.timeSignature.join('/')} 拍 · ♩={score.tempo}</p>
                 </div>
                 <div className="bar-actions">
+                  <button
+                    className={`secondary-btn${showLyrics ? ' on' : ''}`}
+                    onClick={() => setShowLyrics(v => !v)}
+                    title="在音符下方录入多行歌词"
+                  >
+                    歌词录入
+                  </button>
                   <button className="secondary-btn" onClick={() => downloadMidi(score)} disabled={!score.notes.length}>导出 MIDI</button>
                   <button className="secondary-btn" onClick={exportProject}>保存工程</button>
                   <button className="secondary-btn" onClick={printCurrentScore} disabled={!score.notes.length} title="打印简谱 (Ctrl+P)">打印乐谱</button>
@@ -374,8 +403,20 @@ export default function App() {
                 selectedIndex={selectedIndex}
                 playingIndex={playingIndex}
                 onSelect={(i) => { setSelectedIndex(i); const n = score.notes[i]; if (n?.degree) audioEngine.previewNote(n, score.key, score.tempo) }}
+                onLyricClick={focusLyric}
                 onClearSelection={() => setSelectedIndex(null)}
               />
+              {showLyrics && (
+                <LyricEditor
+                  score={score}
+                  focus={lyricFocus}
+                  onSetLyric={setLyric}
+                  onAddLine={() => mutate(addLyricLine)}
+                  onRemoveLine={index => mutate(prev => removeLyricLine(prev, index))}
+                  onRenameLine={(index, name) => setScore(prev => renameLyricLine(prev, index, name))}
+                  onClose={() => setShowLyrics(false)}
+                />
+              )}
               <div className="shortcut-strip">
                 <span><kbd>1</kbd>–<kbd>7</kbd> 输入音符</span>
                 <span><kbd>0</kbd> 休止符</span>
@@ -437,6 +478,7 @@ export default function App() {
             <div className="modal-body">
               <div className="help-block"><h3>四种功能</h3>
                 <p><b>打谱编辑</b>：用数字 1–7 输入音符，0 为休止符；可设置升降号、八度、时值。点击谱面音符会试听并在左侧出现「编辑选中音符」面板，可直接修改该音符；点击谱面空白处取消选择。</p>
+                <p><b>歌词录入</b>：点击工具栏「歌词录入」打开谱面下方的歌词表；可为每个音符填写多行歌词，点击音符下方的歌词可直接定位到对应输入框。用 <kbd>-</kbd> 表示拖音，留空表示该音符不唱。</p>
                 <p><b>听歌转谱</b>：上传音频后提取主旋律。对哼唱、口哨、单件乐器或旋律突出的音频效果最好；伴奏很强的成品歌曲建议先消除伴奏。</p>
                 <p><b>MIDI 转谱</b>：读取 .mid 文件，自动识别调号 / 拍号 / 速度，量化为简谱；也能把当前乐谱导出为 MIDI。</p>
                 <p><b>五线谱转谱</b>：在 MuseScore 等软件中导出 MusicXML，再导入本工具，可转换为简谱或直接导出 MIDI。多声部文件可选择主旋律声部。</p>
@@ -446,7 +488,7 @@ export default function App() {
                 <p><kbd>1</kbd>–<kbd>7</kbd> 输入音符 · <kbd>0</kbd> 休止 · <kbd>↑</kbd><kbd>↓</kbd> 八度 · <kbd>#</kbd>/<kbd>b</kbd> 升降 · <kbd>←</kbd><kbd>→</kbd> 选择音符 · <kbd>Del</kbd> 删除 · <kbd>Space</kbd> 播放 · <kbd>Ctrl+Z</kbd> 撤销 · <kbd>Ctrl+P</kbd> 打印</p>
               </div>
               <div className="help-block"><h3>打印乐谱</h3>
-                <p>点击「打印乐谱」或按 <kbd>Ctrl+P</kbd>，会输出排版干净的 A4 简谱：自动隐藏所有编辑控件，只保留标题、调号、拍号、速度和音符。在打印对话框里也可以选择「另存为 PDF」。若在其它标签页使用，会自动切回打谱页再打印。</p>
+                <p>点击「打印乐谱」或按 <kbd>Ctrl+P</kbd>，会输出排版干净的 A4 简谱：自动隐藏所有编辑控件，只保留标题、调号、拍号、速度、音符和已录入的歌词。在打印对话框里也可以选择「另存为 PDF」。若在其它标签页使用，会自动切回打谱页再打印。</p>
               </div>
               <div className="help-block"><h3>简谱记法</h3>
                 <p>音符上方圆点表示高八度，下方圆点表示低八度；数字下方横线表示八分 / 十六分音符；数字后短横线表示延长时值，圆点表示附点。</p>

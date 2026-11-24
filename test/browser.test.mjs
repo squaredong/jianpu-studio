@@ -41,7 +41,32 @@ await page.locator('.note-cell').first().click()
 expect(await page.locator('.selected-editor').isVisible(), '选中音符后出现编辑面板')
 await page.locator('.sel-pad button').nth(5).click()
 expect((await page.locator('.note-cell').first().locator('.digit').textContent()) === '5', '编辑面板可修改选中音符音高')
+
+console.log('歌词录入')
+await page.getByRole('button', { name: '歌词录入' }).click()
+expect(await page.locator('.lyric-editor').isVisible(), '打开谱面下方的歌词录入面板')
+const lyricRows = page.locator('.lyric-editor .lyric-row:not(.lyric-header)')
+await lyricRows.nth(0).locator('.lyric-input').nth(0).fill('床')
+await lyricRows.nth(0).locator('.lyric-input').nth(1).fill('前')
+await lyricRows.nth(0).locator('.lyric-input').nth(2).fill('明')
+await page.getByRole('button', { name: '＋ 添加歌词行' }).click()
+expect(await page.locator('.lyric-editor .lyric-line-label input').count() === 2, '添加第二行歌词成功')
+const lyricRows2 = page.locator('.lyric-editor .lyric-row:not(.lyric-header)')
+await lyricRows2.nth(1).locator('.lyric-input').nth(0).fill('床前')
+await lyricRows2.nth(1).locator('.lyric-input').nth(1).fill('明月')
+expect(await page.locator('.note-slot').first().locator('.lyric-syllable').count() === 2, '谱面每个音符显示两行歌词')
+expect((await page.locator('.note-slot').first().locator('.lyric-syllable').first().textContent()) === '床', '第一行歌词显示在音符下方')
+expect((await page.locator('.note-slot').nth(1).locator('.lyric-syllable').nth(1).textContent()) === '明月', '第二行歌词显示在音符下方')
+await page.locator('.note-slot').nth(2).locator('.lyric-syllable').nth(1).click()
+expect(
+  await lyricRows2.nth(1).locator('.lyric-input').nth(2).evaluate(el => el === document.activeElement),
+  '点击谱面歌词定位到对应输入框',
+)
 await page.locator('.paper-head').click()
+await tab('MIDI 转谱').click()
+await tab('打谱编辑').click()
+expect((await page.locator('.note-slot').first().locator('.lyric-syllable').first().textContent()) === '床', '切换标签后歌词保留')
+
 await page.locator('.side-section').nth(2).locator('.ghost-btn').first().click() // 保存工程
 await page.screenshot({ path: shot('01-edit.png'), fullPage: true })
 
@@ -106,7 +131,7 @@ await page.waitForTimeout(350)
 expect((await page.locator('.play-btn').textContent() || '').includes('停止'), '播放按钮切换为停止状态')
 await page.locator('.play-btn').click()
 const downloadPromise = page.waitForEvent('download', { timeout: 10000 })
-await page.locator('.content-bar .secondary-btn').first().click()
+await page.locator('.content-bar').getByRole('button', { name: '导出 MIDI' }).click()
 const download = await downloadPromise
 expect(download.suggestedFilename().endsWith('.mid'), `MIDI 导出文件名正确: ${download.suggestedFilename()}`)
 

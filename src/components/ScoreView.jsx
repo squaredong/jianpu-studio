@@ -42,8 +42,9 @@ function NoteCell({ note, index, selected, playing, onSelect }) {
   )
 }
 
-export default function ScoreView({ score, selectedIndex, playingIndex, onSelect, onClearSelection }) {
+export default function ScoreView({ score, selectedIndex, playingIndex, onSelect, onLyricClick, onClearSelection }) {
   const measures = buildMeasures(score.notes, score)
+  const lyricLines = score.lyricLines || []
 
   return (
     <div className="paper-wrap" onClick={onClearSelection}>
@@ -69,16 +70,47 @@ export default function ScoreView({ score, selectedIndex, playingIndex, onSelect
               <div className="measure" key={mi}>
                 <span className="measure-no">{mi + 1}</span>
                 <div className="measure-notes">
-                  {measure.map(note => (
-                    <NoteCell
-                      key={note.id}
-                      note={note}
-                      index={score.notes.findIndex(n => n.id === note.id)}
-                      selected={selectedIndex != null && score.notes[selectedIndex]?.id === note.id}
-                      playing={playingIndex != null && score.notes[playingIndex]?.id === note.id}
-                      onSelect={onSelect}
-                    />
-                  ))}
+                  {measure.map(note => {
+                    const index = score.notes.indexOf(note)
+                    const info = durationInfo(note.duration)
+                    const longestLyric = (note.lyrics || []).reduce(
+                      (max, text) => Math.max(max, String(text || '').length),
+                      0,
+                    )
+                    const slotWidth = Math.max(46 + info.dashes * 17, longestLyric * 14 + 16)
+                    return (
+                      <div className="note-slot" key={note.id} style={{ minWidth: slotWidth }}>
+                        <NoteCell
+                          note={note}
+                          index={index}
+                          selected={selectedIndex === index}
+                          playing={playingIndex === index}
+                          onSelect={onSelect}
+                        />
+                        {lyricLines.length > 0 && (
+                          <div className="lyric-stack">
+                            {lyricLines.map((line, lineIndex) => {
+                              const text = String(note.lyrics?.[lineIndex] || '')
+                              return (
+                                <button
+                                  type="button"
+                                  key={lineIndex}
+                                  className={`lyric-syllable${text ? '' : ' empty'}${selectedIndex === index ? ' selected' : ''}`}
+                                  title={`${line || `第 ${lineIndex + 1} 行`}：${text || '点击录入'}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    onLyricClick?.(index, lineIndex)
+                                  }}
+                                >
+                                  {text || '·'}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
                 <span className={`barline${mi === measures.length - 1 ? ' final' : ''}`} />
               </div>

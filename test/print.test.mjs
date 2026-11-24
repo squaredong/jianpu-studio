@@ -17,6 +17,27 @@ function check(cond, msg) {
 }
 
 await page.goto('http://127.0.0.1:5173/')
+await page.evaluate(() => {
+  const line1 = ['床', '前', '明', '月', '光', '疑', '是']
+  const line2 = ['床前', '明月', '光', '疑', '是', '地上', '霜']
+  const score = {
+    title: '静夜思',
+    key: { tonic: 'C', mode: 'major' },
+    timeSignature: [4, 4],
+    tempo: 96,
+    lyricLines: ['歌词 1', '歌词 2'],
+    notes: line1.map((text, i) => ({
+      id: `n${i}`,
+      degree: i + 1,
+      accidental: 0,
+      octave: 0,
+      duration: 1,
+      lyrics: [text, line2[i]],
+    })),
+  }
+  localStorage.setItem('jianpu-studio-score-v1', JSON.stringify(score))
+})
+await page.reload()
 await page.waitForTimeout(500)
 
 // 统计打印调用（含桌面桥接路径）
@@ -25,11 +46,8 @@ await page.evaluate(() => {
   window.jianpuDesktop = { print: () => { window.__printCount++; return Promise.resolve({ ok: true }) } }
 })
 
-// 输入音符
-for (const d of ['1', '2', '3', '4', '5', '6', '7']) {
-  await page.keyboard.press(d)
-}
-check(await page.locator('.note-cell').count() === 7, '输入 7 个音符')
+check(await page.locator('.note-cell').count() === 7, '加载含歌词的 7 个音符')
+check(await page.locator('.lyric-syllable').count() === 14, '谱面显示两行歌词')
 
 // 顶部按钮触发打印（走桌面桥接）
 await page.getByRole('button', { name: '打印乐谱' }).first().click()
@@ -58,6 +76,8 @@ const styles = await page.evaluate(() => {
     sidebar: display('.sidebar'),
     contentBar: display('.content-bar'),
     shortcut: display('.shortcut-strip'),
+    lyricEditor: display('.lyric-editor'),
+    lyric: display('.lyric-syllable'),
     paper: display('.paper'),
     footer: display('.print-footer'),
     paperBg: getComputedStyle(document.querySelector('.paper')).backgroundColor,
@@ -67,6 +87,8 @@ check(styles.topbar === 'none', '打印时隐藏顶栏')
 check(styles.sidebar === 'none', '打印时隐藏侧边栏')
 check(styles.contentBar === 'none', '打印时隐藏操作栏')
 check(styles.shortcut === 'none', '打印时隐藏快捷键条')
+check(styles.lyricEditor === 'none', '打印时隐藏歌词录入面板')
+check(styles.lyric !== 'none', '打印时保留谱面歌词')
 check(styles.paper !== 'none', '打印时保留谱面')
 check(styles.footer !== 'none', '打印时显示页脚')
 check(styles.paperBg === 'rgb(255, 255, 255)', '打印时纸张为白底')

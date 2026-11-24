@@ -6,7 +6,10 @@ const { Midi } = midiPkg
 globalThis.DOMParser = DOMParser
 
 const { midiToJianpu, jianpuToMidi, durationInfo } = await import('../src/lib/musicTheory.js')
-const { midiEventsToScore, createDefaultScore, buildMeasures } = await import('../src/lib/score.js')
+const {
+  midiEventsToScore, createDefaultScore, createNote, buildMeasures,
+  normalizeScore, hasLyrics, addLyricLine, removeLyricLine, setNoteLyric,
+} = await import('../src/lib/score.js')
 const { parseMidiBuffer } = await import('../src/lib/midiIO.js')
 const { parseMusicXml, listMusicXmlParts } = await import('../src/lib/musicXml.js')
 
@@ -54,6 +57,40 @@ check('小节切分', () => {
   assert.equal(buildMeasures(r.notes, score).length, 2)
 })
 
+console.log('歌词录入')
+check('新音符默认带一行空歌词', () => {
+  assert.deepEqual(createNote().lyrics, [''])
+  assert.deepEqual(createNote({ lyrics: ['床', '床前'] }).lyrics, ['床', '床前'])
+})
+check('设置歌词并按行写入', () => {
+  const score = { ...createDefaultScore(), notes: [createNote(), createNote()] }
+  const next = setNoteLyric(score, 1, 0, '前')
+  assert.equal(next.notes[1].lyrics[0], '前')
+  assert.equal(score.notes[1].lyrics[0], '', '原谱不被就地修改')
+  assert.equal(hasLyrics(next), true)
+})
+check('增删歌词行同步所有音符', () => {
+  let score = { ...createDefaultScore(), notes: [createNote({ lyrics: ['床'] }), createNote()] }
+  score = addLyricLine(score)
+  assert.equal(score.lyricLines.length, 2)
+  assert.deepEqual(score.notes.map(n => n.lyrics.length), [2, 2])
+  score = setNoteLyric(score, 1, 1, '明月')
+  score = removeLyricLine(score, 0)
+  assert.deepEqual(score.notes.map(n => n.lyrics), [[''], ['明月']])
+})
+check('旧工程归一化后补齐歌词字段', () => {
+  const legacy = {
+    title: '旧谱',
+    key: { tonic: 'C', mode: 'major' },
+    timeSignature: [4, 4],
+    notes: [{ id: 'a', degree: 1, duration: 1 }],
+  }
+  const normalized = normalizeScore(legacy)
+  assert.deepEqual(normalized.lyricLines, ['歌词 1'])
+  assert.deepEqual(normalized.notes[0].lyrics, [''])
+  assert.equal(normalized.notes[0].id, 'a')
+})
+
 console.log('MIDI 导入')
 check('解析生成的 MIDI', () => {
   const midi = new Midi()
@@ -79,8 +116,8 @@ const xml = `<?xml version="1.0" encoding="utf-8"?>
     <measure number="1">
       <attributes><divisions>1</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
       <direction><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>96</per-minute></metronome></direction-type><sound tempo="96"/></direction>
-      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
-      <note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type><lyric number="1"><syllabic>single</syllabic><text>床</text></lyric><lyric number="2"><syllabic>single</syllabic><text>床前</text></lyric></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type><lyric number="1"><syllabic>single</syllabic><text>前</text></lyric><lyric number="2"><syllabic>single</syllabic><text>明月</text></lyric></note>
       <note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
       <note><pitch><step>C</step><octave>5</octave></pitch><duration>1</duration><type>quarter</type></note>
     </measure>
@@ -93,6 +130,13 @@ check('解析音符与调号拍号速度', () => {
   assert.equal(r.score.notes[3].octave, 1)
   assert.equal(r.score.tempo, 96)
   assert.deepEqual(r.score.timeSignature, [4, 4])
+})
+check('MusicXML 多行歌词导入', () => {
+  const r = parseMusicXml(xml)
+  assert.equal(r.score.lyricLines.length, 2)
+  assert.deepEqual(r.score.notes[0].lyrics.slice(0, 2), ['床', '床前'])
+  assert.equal(r.score.notes[1].lyrics[0], '前')
+  assert.equal(r.score.notes[1].lyrics[1], '明月')
 })
 check('G 大调调号识别', () => {
   const gxml = xml.replace('<fifths>0</fifths>', '<fifths>1</fifths>')

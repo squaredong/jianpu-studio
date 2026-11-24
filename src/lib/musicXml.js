@@ -1,6 +1,6 @@
 // MusicXML（五线谱）解析 -> 简谱
 import { fifthsToMajorTonic, relativeMinorTonic, NOTE_NAMES, FLAT_NAMES } from './musicTheory.js'
-import { midiEventsToScore, createDefaultScore } from './score.js'
+import { midiEventsToScore, createDefaultScore, normalizeScore, MAX_LYRIC_LINES } from './score.js'
 
 const STEP_SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }
 const TYPE_BEATS = {
@@ -11,6 +11,26 @@ const TYPE_BEATS = {
 
 function tagText(el, tag) {
   return el?.getElementsByTagName(tag)?.[0]?.textContent?.trim() ?? null
+}
+
+// MusicXML 的一行歌词可写成 <lyric number="1"><text>词</text></lyric>
+function noteLyrics(noteEl) {
+  const byLine = {}
+  for (const lyricEl of [...noteEl.getElementsByTagName('lyric')]) {
+    const rawNumber = Number(lyricEl.getAttribute('number') || 1)
+    const number = Number.isFinite(rawNumber) && rawNumber > 0 ? Math.floor(rawNumber) : 1
+    if (number > MAX_LYRIC_LINES) continue
+    const syllabic = tagText(lyricEl, 'syllabic')
+    const isExtender = lyricEl.getElementsByTagName('extend').length > 0
+      || lyricEl.getAttribute('type') === 'extend'
+    const text = isExtender || syllabic === 'middle' || syllabic === 'end'
+      ? '—'
+      : tagText(lyricEl, 'text') || ''
+    byLine[number - 1] = text
+  }
+  const maxLine = Object.keys(byLine).reduce((max, key) => Math.max(max, Number(key)), -1)
+  if (maxLine < 0) return []
+  return Array.from({ length: maxLine + 1 }, (_, i) => byLine[i] || '')
 }
 
 export function listMusicXmlParts(xmlText) {
@@ -101,12 +121,14 @@ export function parseMusicXml(xmlText, partIndex = 0) {
         midi = (octave + 1) * 12 + (STEP_SEMITONES[step] ?? 0) + alter
       }
 
+      const lyrics = noteLyrics(child)
       if (isChord && events.length) {
         const last = events[events.length - 1]
         if (midi !== null && (last.midi === null || midi > last.midi)) last.midi = midi
         last.durationBeats = Math.max(last.durationBeats, durationBeats)
+        if (!last.lyrics?.length && lyrics.length) last.lyrics = lyrics
       } else {
-        events.push({ midi, startBeat: cursor, durationBeats })
+        events.push({ midi, startBeat: cursor, durationBeats, lyrics })
         cursor += durationBeats
       }
     }
@@ -122,9 +144,17 @@ export function parseMusicXml(xmlText, partIndex = 0) {
   score.timeSignature = timeSignature
   score.tempo = tempo
   score.notes = result.notes
+  const lyricLineCount = result.notes.reduce(
+    (max, n) => Math.max(max, Array.isArray(n.lyrics) ? n.lyrics.length : 0),
+    0,
+  )
+  score.lyricLines = Array.from(
+    { length: Math.max(1, Math.min(MAX_LYRIC_LINES, lyricLineCount)) },
+    (_, i) => `歌词 ${i + 1}`,
+  )
 
   return {
-    score,
+    score: normalizeScore(score),
     info: {
       partName,
       partCount: parts.length,
